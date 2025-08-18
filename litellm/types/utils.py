@@ -967,12 +967,16 @@ class Usage(CompletionUsage):
             else:
                 _prompt_tokens_details.cached_tokens = params["cache_read_input_tokens"]
 
+        from litellm.patch_logger import patch_logger
+        patch_logger.info(f"patch applied for Usage.__init__ usage response, "
+                          f"prompt_tokens: {prompt_tokens}, completion_tokens: {completion_tokens}, "
+                          f"total_tokens: {total_tokens}")
         super().__init__(
             prompt_tokens=prompt_tokens or 0,
             completion_tokens=completion_tokens or 0,
             total_tokens=total_tokens or 0,
-            completion_tokens_details=_completion_tokens_details or None,
-            prompt_tokens_details=_prompt_tokens_details or None,
+            completion_tokens_details=None,
+            prompt_tokens_details=None,
         )
 
         if server_tool_use is not None:

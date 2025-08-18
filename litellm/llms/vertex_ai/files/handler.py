@@ -9,8 +9,12 @@ from litellm.integrations.gcs_bucket.gcs_bucket_base import (
     GCSLoggingConfig,
 )
 from litellm.llms.custom_httpx.http_handler import get_async_httpx_client
-from litellm.types.llms.openai import CreateFileRequest, OpenAIFileObject
+from litellm.types.llms.openai import CreateFileRequest, OpenAIFileObject, FileContentRequest, \
+    HttpxBinaryResponseContent
 from litellm.types.llms.vertex_ai import VERTEX_CREDENTIALS_TYPES
+
+from google.cloud import storage
+from urllib.parse import urlparse
 
 from .transformation import VertexAIJsonlFilesTransformation
 
@@ -29,6 +33,7 @@ class VertexAIFilesHandler(GCSBucketBase):
         self.async_httpx_client = get_async_httpx_client(
             llm_provider=LlmProviders.VERTEX_AI,
         )
+        self.storage_client = storage.Client()
 
     async def async_create_file(
         self,
@@ -105,3 +110,68 @@ class VertexAIFilesHandler(GCSBucketBase):
                     max_retries=max_retries,
                 )
             )
+
+    def file_content(
+        self,
+        _is_async: bool,
+        file_content_request: FileContentRequest,
+        timeout: Union[float, httpx.Timeout],
+        max_retries: Optional[int],
+        litellm_params: Optional[dict] = None,
+    ) -> Union[
+        HttpxBinaryResponseContent, Coroutine[Any, Any, HttpxBinaryResponseContent]
+    ]:
+        if _is_async:
+            return self.afile_content(  # type: ignore
+                file_content_request=file_content_request,
+            )
+
+        # 同步逻辑
+        parsed = urlparse(file_content_request["file_id"])
+        if parsed.scheme != "gs":
+            raise ValueError(f"Unsupported file scheme: {parsed.scheme}")
+
+        bucket_name = parsed.netloc
+        blob_path = parsed.path.lstrip("/")
+
+        bucket = self.storage_client.bucket(bucket_name)
+        blob = bucket.blob(blob_path)
+        content_bytes = blob.download_as_bytes()
+
+        fake_response = httpx.Response(
+            status_code=200,
+            content=content_bytes,
+            headers={"Content-Type": blob.content_type or "application/octet-stream"},
+        )
+
+        return HttpxBinaryResponseContent(response=fake_response)
+
+
+    async def afile_content(
+        self,
+        file_content_request: FileContentRequest,
+    ) -> HttpxBinaryResponseContent:
+        file_id = file_content_request["file_id"]
+
+        # 解析 GCS URL：gs://bucket-name/path/to/blob
+        parsed = urlparse(file_id)
+        if parsed.scheme != "gs":
+            raise ValueError(f"Unsupported file scheme: {parsed.scheme}")
+
+        bucket_name = parsed.netloc
+        blob_path = parsed.path.lstrip("/")  # 去掉开头的斜杠
+
+        # 异步包装下载操作
+        bucket = self.storage_client.bucket(bucket_name)
+        blob = bucket.blob(blob_path)
+
+        loop = asyncio.get_running_loop()
+        content_bytes = await loop.run_in_executor(None, blob.download_as_bytes)
+
+        fake_response = httpx.Response(
+            status_code=200,
+            content=content_bytes,
+            headers={"Content-Type": blob.content_type or "application/octet-stream"},
+        )
+
+        return HttpxBinaryResponseContent(response=fake_response)

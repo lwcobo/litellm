@@ -283,7 +283,7 @@ async def retrieve_batch(
             custom_llm_provider = (
                 provider
                 or await get_custom_llm_provider_from_request_body(request=request)
-                or "openai"
+                or "vertex_ai" # 默认的 provider 由 openai 换成 vertex_ai
             )
             response = await litellm.aretrieve_batch(
                 custom_llm_provider=custom_llm_provider, **data  # type: ignore

@@ -887,6 +887,14 @@ def file_content(
                 client=client,
                 litellm_params=litellm_params_dict,
             )
+        elif custom_llm_provider == "vertex_ai":
+            response = vertex_ai_files_instance.file_content(
+                _is_async=_is_async,
+                timeout=timeout,
+                max_retries=optional_params.max_retries,
+                file_content_request=_file_content_request,
+                litellm_params=litellm_params_dict,
+            )
         else:
             raise litellm.exceptions.BadRequestError(
                 message="LiteLLM doesn't support {} for 'custom_llm_provider'. Supported providers are 'openai', 'azure', 'vertex_ai'.".format(

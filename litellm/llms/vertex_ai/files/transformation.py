@@ -274,12 +274,18 @@ class VertexAIFilesConfig(VertexBase, BaseFilesConfig):
             openai_jsonl_content = [
                 json.loads(line) for line in file_content.splitlines() if line.strip()
             ]
-            vertex_jsonl_content = (
-                self._transform_openai_jsonl_content_to_vertex_ai_jsonl_content(
-                    openai_jsonl_content
-                )
-            )
-            return json.dumps(vertex_jsonl_content)
+            result_lines = []
+            for item in openai_jsonl_content:
+                new_item = {
+                    "custom_id": item["custom_id"],
+                    "request": {
+                        "messages": item["body"]["messages"],
+                        "anthropic_version": "vertex-2023-10-16",
+                        "max_tokens": item["body"]["max_tokens"]
+                    }
+                }
+                result_lines.append(json.dumps(new_item))
+            return "\n".join(result_lines).encode("utf-8")
         elif isinstance(extracted_file_data_content, bytes):
             return extracted_file_data_content
         else:

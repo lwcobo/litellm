@@ -78,7 +78,7 @@ def _batch_cost_calculator(
     Calculate the cost of a batch based on the output file id
     """
     if custom_llm_provider == "vertex_ai":
-        raise ValueError("Vertex AI does not support file content retrieval")
+        return 0
     total_cost = _get_batch_job_cost_from_file_content(
         file_content_dictionary=file_content_dictionary,
         custom_llm_provider=custom_llm_provider,
@@ -97,7 +97,7 @@ async def _get_batch_output_file_content_as_dictionary(
     from litellm.files.main import afile_content
 
     if custom_llm_provider == "vertex_ai":
-        raise ValueError("Vertex AI does not support file content retrieval")
+        return {}
 
     if batch.output_file_id is None:
         raise ValueError("Output file id is None cannot retrieve file content")

@@ -172,6 +172,12 @@ class OpenAIGPTConfig(BaseLLMModelInfo, BaseConfig):
             model_specific_params.append(
                 "user"
             )  # user is not a param supported by all openai-compatible endpoints - e.g. azure ai
+
+        from litellm.patch_logger import patch_logger
+        patch_logger.info(f"patch for OpenAIGPTConfig.get_supported_openai_params")
+        if model.split("/")[-1].startswith("gemini"):
+            base_params.remove("frequency_penalty")
+            return base_params
         return base_params + model_specific_params
 
     def _map_openai_params(
@@ -362,6 +368,15 @@ class OpenAIGPTConfig(BaseLLMModelInfo, BaseConfig):
                                 cast(OpenAIMessageContentListBlock, content_item),
                             )
                         )
+            from litellm.patch_logger import patch_logger
+            patch_logger.info(f"patch for OpenAIGPTConfig._transform_messages {len(messages)}")
+            model_name = model.split("/")[-1]
+            if model_name.startswith("gemini"):
+                for message in messages:
+                    if (message.get('role') == 'assistant'
+                            and message.get('content') is None
+                            and message.get('tool_calls') is not None):
+                        message['content'] = ' '
             return messages
 
         if is_async:
@@ -382,6 +397,15 @@ class OpenAIGPTConfig(BaseLLMModelInfo, BaseConfig):
                         message_content_types[i] = self._transform_content_item(
                             cast(OpenAIMessageContentListBlock, content_item)
                         )
+            from litellm.patch_logger import patch_logger
+            patch_logger.info(f"patch for OpenAIGPTConfig._transform_messages {len(messages)}")
+            model_name = model.split("/")[-1]
+            if model_name.startswith("gemini"):
+                for message in messages:
+                    if (message.get('role') == 'assistant'
+                            and message.get('content') is None
+                            and message.get('tool_calls') is not None):
+                        message['content'] = ' '
             return messages
 
     def remove_cache_control_flag_from_messages_and_tools(
