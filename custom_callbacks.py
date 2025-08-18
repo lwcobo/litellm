@@ -12,6 +12,8 @@ hook_target_host = os.environ.get("HOOK_TARGET_HOST", "http://localhost:8000")
 
 async def send_hook(client, payload: dict) -> Optional[dict]:
     verbose_proxy_logger.info(f"send_hook with payload: {payload}")
+    if 'litellm_logging_obj' in payload['llm_data']:
+        del payload['llm_data']['litellm_logging_obj']
     async with client.post("/v1/gateway/litellm_hook/", json=payload) as response:
         res_text = await response.text()
         verbose_proxy_logger.info(
