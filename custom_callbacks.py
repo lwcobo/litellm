@@ -2,7 +2,7 @@ import json
 import os
 from typing import Literal, Optional
 
-import aiohttp
+import httpx
 from litellm._logging import verbose_proxy_logger
 from litellm.integrations.custom_logger import CustomLogger
 from litellm.proxy.proxy_server import DualCache, UserAPIKeyAuth
@@ -10,17 +10,20 @@ from litellm.proxy.proxy_server import DualCache, UserAPIKeyAuth
 hook_target_host = os.environ.get("HOOK_TARGET_HOST", "http://localhost:8000")
 
 
-async def send_hook(client, payload: dict) -> Optional[dict]:
+async def send_hook(payload: dict) -> Optional[dict]:
     verbose_proxy_logger.info(f"send_hook with payload: {payload}")
     if 'litellm_logging_obj' in payload['llm_data']:
         del payload['llm_data']['litellm_logging_obj']
-    async with client.post("/v1/gateway/litellm_hook/", json=payload) as response:
-        res_text = await response.text()
+    
+    # Create and use httpx client within the function
+    async with httpx.AsyncClient(base_url=hook_target_host) as client:
+        response = await client.post("/v1/gateway/litellm_hook/", json=payload)
+        res_text = response.text
         verbose_proxy_logger.info(
-            f"Response status {response.status}, response: {res_text}"
+            f"Response status {response.status_code}, response: {res_text}"
         )
         res_json = json.loads(res_text)
-        if response.status in [200, 201]:
+        if response.status_code in [200, 201]:
             return res_json["result"]
         else:
             return res_text
@@ -34,8 +37,6 @@ class MyCustomHandler(
     # Class variables or attributes
     def __init__(self):
         super().__init__()
-        # Create async HTTP client session
-        self.client = aiohttp.ClientSession(base_url=hook_target_host)
 
     # LOG HOOKS
 
@@ -74,12 +75,11 @@ class MyCustomHandler(
     ):
         verbose_proxy_logger.info("async_pre_call_hook called")
         return await send_hook(
-            self.client,
             {
                 "method": "async_pre_call_hook",
                 "llm_data": data,
                 "call_type": call_type,
-            },
+            }
         )
 
     async def async_post_call_failure_hook(
