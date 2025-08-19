@@ -74,6 +74,8 @@ class MyCustomHandler(
         ],
     ):
         verbose_proxy_logger.info("async_pre_call_hook called")
+        if call_type == "pass_through_endpoint":
+            return
         return await send_hook(
             {
                 "method": "async_pre_call_hook",
