@@ -432,7 +432,7 @@ async def get_file_content(
             or get_custom_llm_provider_from_request_headers(request=request)
             or get_custom_llm_provider_from_request_query(request=request)
             or await get_custom_llm_provider_from_request_body(request=request)
-            or "openai"
+            or "vertex_ai"  # 默认的 provider 由 openai 换成 vertex_ai
         )
 
         ## check if file_id is a litellm managed file
