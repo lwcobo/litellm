@@ -12,8 +12,17 @@ hook_target_host = os.environ.get("HOOK_TARGET_HOST", "http://localhost:8000")
 
 async def send_hook(payload: dict) -> Optional[dict]:
     verbose_proxy_logger.info(f"send_hook with payload: {payload}")
-    if 'litellm_logging_obj' in payload['llm_data']:
-        del payload['llm_data']['litellm_logging_obj']
+
+    if 'llm_data' in payload:
+        if 'litellm_logging_obj' in payload['llm_data']:
+            del payload['llm_data']['litellm_logging_obj']
+
+        if 'metadata' in payload['llm_data']:
+            if 'user_api_key_auth' in payload['llm_data']['metadata']:
+                del payload['llm_data']['metadata']['user_api_key_auth']
+
+            if 'litellm_parent_otel_span' in payload['llm_data']['metadata']:
+                del payload['llm_data']['metadata']['litellm_parent_otel_span']
 
     # Create and use httpx client within the function
     async with httpx.AsyncClient(base_url=hook_target_host) as client:
