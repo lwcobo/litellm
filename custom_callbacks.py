@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Literal, Optional
+from typing import Any, Literal, Optional, Tuple
 
 import httpx
 from litellm._logging import verbose_proxy_logger
@@ -10,19 +10,60 @@ from litellm.proxy.proxy_server import DualCache, UserAPIKeyAuth
 hook_target_host = os.environ.get("HOOK_TARGET_HOST", "http://localhost:8000")
 
 
+def _is_json_serializable(value: Any) -> bool:
+    try:
+        json.dumps(value)
+        return True
+    except (TypeError, OverflowError, ValueError):
+        return False
+
+
+def _coerce_to_json_value(value: Any) -> Any:
+    if _is_json_serializable(value):
+        return value
+    try:
+        return str(value)
+    except Exception:
+        return f"<unserializable {type(value).__name__}>"
+
+
+def _sanitize_for_json(value: Any, depth: int, max_depth: int) -> Tuple[bool, Any]:
+    if depth > max_depth:
+        return True, _coerce_to_json_value(value)
+
+    if isinstance(value, dict):
+        cleaned: dict = {}
+        for k, v in value.items():
+            if not _is_json_serializable(k):
+                continue
+            ok, cleaned_v = _sanitize_for_json(v, depth + 1, max_depth)
+            if ok:
+                cleaned[k] = cleaned_v
+        return True, cleaned
+
+    if isinstance(value, list):
+        cleaned_list = []
+        for item in value:
+            ok, cleaned_item = _sanitize_for_json(item, depth + 1, max_depth)
+            if ok:
+                cleaned_list.append(cleaned_item)
+        return True, cleaned_list
+
+    if isinstance(value, tuple):
+        cleaned_tuple = []
+        for item in value:
+            ok, cleaned_item = _sanitize_for_json(item, depth + 1, max_depth)
+            if ok:
+                cleaned_tuple.append(cleaned_item)
+        return True, cleaned_tuple
+
+    return True, _coerce_to_json_value(value)
+
+
 async def send_hook(payload: dict) -> Optional[dict]:
     verbose_proxy_logger.info(f"send_hook with payload: {payload}")
 
-    if 'llm_data' in payload:
-        if 'litellm_logging_obj' in payload['llm_data']:
-            del payload['llm_data']['litellm_logging_obj']
-
-        if 'metadata' in payload['llm_data']:
-            if 'user_api_key_auth' in payload['llm_data']['metadata']:
-                del payload['llm_data']['metadata']['user_api_key_auth']
-
-            if 'litellm_parent_otel_span' in payload['llm_data']['metadata']:
-                del payload['llm_data']['metadata']['litellm_parent_otel_span']
+    _, payload = _sanitize_for_json(payload, depth=0, max_depth=10)
 
     # Create and use httpx client within the function
     async with httpx.AsyncClient(base_url=hook_target_host) as client:
