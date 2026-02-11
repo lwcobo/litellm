@@ -80,6 +80,17 @@ def _messages_contain_images(data: dict) -> bool:
     return False
 
 
+def _safe_merge(target: dict, source: dict) -> None:
+    """Merge *source* into *target*, but never overwrite a value in *target*
+    that is not JSON-serializable (i.e. an internal litellm object) with the
+    stringified version coming back from the hook server."""
+    for k, v in source.items():
+        if k in target and not _is_json_serializable(target[k]):
+            # target holds a live object; source holds a str() of it — skip.
+            continue
+        target[k] = v
+
+
 async def send_hook(payload: dict) -> Optional[dict]:
     verbose_proxy_logger.info(f"send_hook with payload: {payload}")
 
@@ -153,13 +164,17 @@ class MyCustomHandler(
         verbose_proxy_logger.info("async_pre_call_hook called")
         if call_type == "pass_through_endpoint":
             return
-        return await send_hook(
+        result = await send_hook(
             {
                 "method": "async_pre_call_hook",
                 "llm_data": data,
                 "call_type": call_type,
             }
         )
+        if isinstance(result, dict):
+            _safe_merge(data, result)
+            return data
+        return result
 
     async def async_post_call_failure_hook(
         self,
