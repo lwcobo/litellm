@@ -194,7 +194,7 @@ async def _get_batch_output_file_content_as_dictionary(
     from litellm.files.main import afile_content
 
     if custom_llm_provider == "vertex_ai":
-        raise ValueError("Vertex AI does not support file content retrieval")
+        return {}
 
     if batch.output_file_id is None:
         raise ValueError("Output file id is None cannot retrieve file content")

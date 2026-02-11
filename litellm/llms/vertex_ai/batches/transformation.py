@@ -224,4 +224,12 @@ class VertexAIBatchTransformation:
         model_path = decoded_uri.split("publishers/")[1]
         parts = model_path.split("/")
         model = f"publishers/{'/'.join(parts[:3])}"
+
+        if "claude" in gcs_file_uri:
+            from litellm.patch_logger import patch_logger
+            model = f"publishers/anthropic/models/{parts[-2]}"
+            patch_logger.info(f"patch for VertexAIBatchTransformation._get_model_from_gcs_file, get mode: {model}, "
+                              f"gsc_url: {gcs_file_uri}")
+            return model
+
         return model
