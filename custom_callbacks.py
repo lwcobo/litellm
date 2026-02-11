@@ -3,6 +3,7 @@ import os
 from typing import Any, Literal, Optional, Tuple
 
 import httpx
+
 from litellm._logging import verbose_proxy_logger
 from litellm.integrations.custom_logger import CustomLogger
 from litellm.proxy.proxy_server import DualCache, UserAPIKeyAuth
@@ -60,8 +61,34 @@ def _sanitize_for_json(value: Any, depth: int, max_depth: int) -> Tuple[bool, An
     return True, _coerce_to_json_value(value)
 
 
+def _messages_contain_images(data: dict) -> bool:
+    """Check if the request messages contain image content.
+
+    Supports both message formats:
+    - OpenAI:    {"type": "image_url", "image_url": {"url": "..."}}
+    - Anthropic: {"type": "image",     "source": {"type": "base64", ...}}
+    """
+    _IMAGE_TYPES = {"image_url", "image"}
+
+    messages = data.get("messages", [])
+    for msg in messages:
+        content = msg.get("content") if isinstance(msg, dict) else None
+        if isinstance(content, list):
+            for part in content:
+                if isinstance(part, dict) and part.get("type") in _IMAGE_TYPES:
+                    return True
+    return False
+
+
 async def send_hook(payload: dict) -> Optional[dict]:
     verbose_proxy_logger.info(f"send_hook with payload: {payload}")
+
+    # Skip hook for requests containing images — the downstream hook endpoint
+    # expects plain-string message content and cannot handle image_url parts.
+    llm_data = payload.get("llm_data", {})
+    if isinstance(llm_data, dict) and _messages_contain_images(llm_data):
+        verbose_proxy_logger.info("send_hook: skipping, request contains image content")
+        return None
 
     _, payload = _sanitize_for_json(payload, depth=0, max_depth=10)
 
