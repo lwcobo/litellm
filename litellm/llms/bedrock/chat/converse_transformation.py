@@ -14,6 +14,7 @@ import litellm
 from litellm._logging import verbose_logger
 from litellm.constants import (
     BEDROCK_MIN_THINKING_BUDGET_TOKENS,
+    DEFAULT_CHAT_COMPLETION_PARAM_VALUES,
     RESPONSE_FORMAT_TOOL_NAME,
 )
 from litellm.litellm_core_utils.core_helpers import (
@@ -1367,6 +1368,12 @@ class AmazonConverseConfig(BaseConfig):
         additional_request_params = filter_exceptions_from_params(
             additional_request_params
         )
+
+        additional_request_params = {
+            k: v
+            for k, v in additional_request_params.items()
+            if k not in DEFAULT_CHAT_COMPLETION_PARAM_VALUES
+        }
 
         if anthropic_output_config is not None and isinstance(
             anthropic_output_config, dict

@@ -187,6 +187,11 @@ class OpenAIGPTConfig(BaseLLMModelInfo, BaseConfig):
             model_specific_params.append(
                 "user"
             )  # user is not a param supported by all openai-compatible endpoints - e.g. azure ai
+
+        if model.split("/")[-1].startswith("gemini"):
+            base_params = [p for p in base_params if p != "frequency_penalty"]
+            return base_params
+
         return base_params + model_specific_params
 
     def _map_openai_params(
@@ -384,6 +389,14 @@ class OpenAIGPTConfig(BaseLLMModelInfo, BaseConfig):
                                 cast(OpenAIMessageContentListBlock, content_item),
                             )
                         )
+            if model.split("/")[-1].startswith("gemini"):
+                for message in messages:
+                    if (
+                        message.get("role") == "assistant"
+                        and message.get("content") is None
+                        and message.get("tool_calls") is not None
+                    ):
+                        message["content"] = " "  # type: ignore
             return messages
 
         if is_async:
@@ -404,6 +417,14 @@ class OpenAIGPTConfig(BaseLLMModelInfo, BaseConfig):
                         message_content_types[i] = self._transform_content_item(
                             cast(OpenAIMessageContentListBlock, content_item)
                         )
+            if model.split("/")[-1].startswith("gemini"):
+                for message in messages:
+                    if (
+                        message.get("role") == "assistant"
+                        and message.get("content") is None
+                        and message.get("tool_calls") is not None
+                    ):
+                        message["content"] = " "  # type: ignore
             return messages
 
     def remove_cache_control_flag_from_messages_and_tools(

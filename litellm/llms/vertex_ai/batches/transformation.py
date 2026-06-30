@@ -227,4 +227,9 @@ class VertexAIBatchTransformation:
         model_path = decoded_uri.split("publishers/")[1]
         parts = model_path.split("/")
         model = f"publishers/{'/'.join(parts[:3])}"
+
+        if "claude" in gcs_file_uri:
+            model = f"publishers/anthropic/models/{parts[-2]}"
+            return model
+
         return model
